@@ -1,118 +1,23 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import numpy as np
 
 from acquisition import UCBAcquisition
-from classical_objective import ClassicalSteadyStateObjective, SearchParameter, stable_tail_mean_score
+from classical_problem import RANDOM_SEED, SEARCH_PARAMETERS, create_classical_objective
 from optimizer import BayesianOptimizer
 from sampling import generate_initial_data
 from surrogate import GPSurrogate
 
 
-BACKEND_ROOT = Path("/mnt/c/Users/shuan/OneDrive/Documents/PycharmProjects/QCphasetransition")
-BACKEND_PYTHON = "/home/shuan/cupy-env/bin/python"
-
-RANDOM_SEED = 7
 N_INITIAL_SAMPLES = 48
 N_BO_ITERATIONS = 80
 N_CANDIDATES_PER_STEP = 2048
 UCB_BETA = 3.0
 
-SIMULATION = {
-    "L": 8,
-    "N_sample": 128,
-    "n_periods": 60,
-    "measure_every_periods": 5,
-    "random_seed": 0,
-}
-
-ANALYSIS = {
-    "min_tail": 6,
-    "stability_z": 2.0,
-    "target_observable": "m_2",
-    "target_stderr": 0.02,
-}
-
-PERIOD_TEMPLATE = [
-    {
-        "name": "tile_11",
-        "family": "symmetric_kernel",
-        "support_shape": [1, 1],
-        "shifts": [[0, 0]],
-        "params": {
-            "theta": [0.0] * 2,
-        },
-    },
-    {
-        "name": "tile_12",
-        "family": "symmetric_kernel",
-        "support_shape": [1, 2],
-        "shifts": [[0, 0], [0, 1]],
-        "params": {
-            "theta": [0.0] * 6,
-        },
-    },
-    {
-        "name": "tile_21",
-        "family": "symmetric_kernel",
-        "support_shape": [2, 1],
-        "shifts": [[0, 0], [1, 0]],
-        "params": {
-            "theta": [0.0] * 6,
-        },
-    },
-    {
-        "name": "tile_22",
-        "family": "symmetric_kernel",
-        "support_shape": [2, 2],
-        "shifts": [[0, 0], [1, 0], [1, 1], [0, 1]],
-        "params": {
-            "theta": [0.0] * 31,
-        },
-    },
-]
-
-THETA_BOUNDS_BY_BLOCK = {
-    "tile_11": (-3.0, 3.0),
-    "tile_12": (-3.0, 3.0),
-    "tile_21": (-3.0, 3.0),
-    "tile_22": (-3.0, 3.0),
-}
-
-
-def build_search_parameters(period_template: list[dict]) -> list[SearchParameter]:
-    parameters: list[SearchParameter] = []
-    for block in period_template:
-        lower, upper = THETA_BOUNDS_BY_BLOCK[block["name"]]
-        for theta_index in range(len(block["params"]["theta"])):
-            parameters.append(
-                SearchParameter(
-                    block_name=block["name"],
-                    theta_index=theta_index,
-                    lower=lower,
-                    upper=upper,
-                )
-            )
-    return parameters
-
-
-SEARCH_PARAMETERS = build_search_parameters(PERIOD_TEMPLATE)
-
 
 def main() -> None:
     rng = np.random.default_rng(RANDOM_SEED)
-    objective = ClassicalSteadyStateObjective(
-        backend_root=BACKEND_ROOT,
-        backend_python=BACKEND_PYTHON,
-        simulation=SIMULATION,
-        period_template=PERIOD_TEMPLATE,
-        parameters=SEARCH_PARAMETERS,
-        analysis=ANALYSIS,
-        score_getter=lambda result: stable_tail_mean_score(result, observable="m_2"),
-        workdir=Path("/tmp/model-search-backend"),
-    )
+    objective = create_classical_objective()
 
     x_init, y_init = generate_initial_data(
         objective=objective,
